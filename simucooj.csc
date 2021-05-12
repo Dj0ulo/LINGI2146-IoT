@@ -22,10 +22,10 @@
     <motetype>
       org.contikios.cooja.mspmote.Z1MoteType
       <identifier>z11</identifier>
-      <description>Z1 Mote Type #z11</description>
-      <source EXPORT="discard">[CONFIG_DIR]/cooja/udp-client.c</source>
+      <description>client</description>
+      <source EXPORT="discard">[CONFIG_DIR]/udp-client.c</source>
       <commands EXPORT="discard">make udp-client.z1 TARGET=z1</commands>
-      <firmware EXPORT="copy">[CONFIG_DIR]/cooja/udp-client.z1</firmware>
+      <firmware EXPORT="copy">[CONFIG_DIR]/udp-client.z1</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>
@@ -42,10 +42,10 @@
     <motetype>
       org.contikios.cooja.mspmote.Z1MoteType
       <identifier>z12</identifier>
-      <description>Z1 Mote Type #z12</description>
-      <source EXPORT="discard">[CONFIG_DIR]/cooja/udp-server.c</source>
+      <description>server</description>
+      <source EXPORT="discard">[CONFIG_DIR]/udp-server.c</source>
       <commands EXPORT="discard">make udp-server.z1 TARGET=z1</commands>
-      <firmware EXPORT="copy">[CONFIG_DIR]/cooja/udp-server.z1</firmware>
+      <firmware EXPORT="copy">[CONFIG_DIR]/udp-server.z1</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>
@@ -63,8 +63,8 @@
       <breakpoints />
       <interface_config>
         org.contikios.cooja.interfaces.Position
-        <x>42.85664000803748</x>
-        <y>93.17576179710578</y>
+        <x>32.45316111867702</x>
+        <y>42.546758041102315</y>
         <z>0.0</z>
       </interface_config>
       <interface_config>
@@ -81,8 +81,8 @@
       <breakpoints />
       <interface_config>
         org.contikios.cooja.interfaces.Position
-        <x>64.65344634498237</x>
-        <y>78.00253234005312</y>
+        <x>24.79636682956089</x>
+        <y>44.707942016495984</y>
         <z>0.0</z>
       </interface_config>
       <interface_config>
@@ -99,7 +99,7 @@
   <plugin>
     org.contikios.cooja.plugins.SimControl
     <width>280</width>
-    <z>0</z>
+    <z>1</z>
     <height>160</height>
     <location_x>400</location_x>
     <location_y>0</location_y>
@@ -112,7 +112,7 @@
       <skin>org.contikios.cooja.plugins.skins.GridVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.TrafficVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.UDGMVisualizerSkin</skin>
-      <viewport>12.466380098386416 0.0 0.0 12.466380098386416 -516.6308004435458 -853.9868396536069</viewport>
+      <viewport>21.38326648790936 0.0 0.0 21.38326648790936 -512.5909562120929 -710.3952518271121</viewport>
     </plugin_config>
     <width>400</width>
     <z>2</z>
@@ -127,9 +127,9 @@
       <formatted_time />
       <coloring />
     </plugin_config>
-    <width>788</width>
-    <z>1</z>
-    <height>536</height>
+    <width>936</width>
+    <z>0</z>
+    <height>516</height>
     <location_x>400</location_x>
     <location_y>160</location_y>
   </plugin>
@@ -143,11 +143,11 @@
       <showLEDs />
       <zoomfactor>500.0</zoomfactor>
     </plugin_config>
-    <width>500</width>
+    <width>1336</width>
     <z>4</z>
     <height>166</height>
     <location_x>0</location_x>
-    <location_y>511</location_y>
+    <location_y>612</location_y>
   </plugin>
   <plugin>
     org.contikios.cooja.plugins.Notes
@@ -155,9 +155,9 @@
       <notes>Enter notes here</notes>
       <decorations>true</decorations>
     </plugin_config>
-    <width>150</width>
+    <width>656</width>
     <z>3</z>
-    <height>300</height>
+    <height>160</height>
     <location_x>680</location_x>
     <location_y>0</location_y>
   </plugin>
