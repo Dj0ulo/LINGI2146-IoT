@@ -11,11 +11,6 @@
 PROCESS(udp_node_process, "UDP Movement detector");
 AUTOSTART_PROCESSES(&udp_node_process);
 
-static void callback_send(packet p)
-{
-  LOG_INFO("Request Callback of the movement detector\n");
-  log_packet(p);
-}
 
 PROCESS_THREAD(udp_node_process, ev, data)
 {
@@ -47,7 +42,7 @@ PROCESS_THREAD(udp_node_process, ev, data)
       if (data == &button_sensor)
       {
         LOG_INFO("Movement detected\n");
-        send_request_to_root(MOVEMENT_DETECTED, TRUE, callback_send);
+        send_request_to_root(MOVEMENT_DETECTED, TRUE, NULL);
       }
     }
   }

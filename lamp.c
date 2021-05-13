@@ -11,9 +11,8 @@
 PROCESS(udp_lamp_process, "UDP Lamp");
 AUTOSTART_PROCESSES(&udp_lamp_process);
 
-static void callback(unsigned index_node, packet p)
+static uint32_t callback(unsigned index_node, packet p)
 {
-  LOG_INFO("Action Callback of the lamp\n");
   if (p.status == OK)
   {
     leds_mask_t color = LEDS_COLOUR_NONE;
@@ -35,6 +34,8 @@ static void callback(unsigned index_node, packet p)
       leds_off(color);
     }
   }
+  return 0;
+
 }
 
 PROCESS_THREAD(udp_lamp_process, ev, data)
@@ -52,11 +53,6 @@ PROCESS_THREAD(udp_lamp_process, ev, data)
 
   /* Initialize UDP connection with root*/
   connect_root(&root_ipaddr, LAMP, callback);
-
-  etimer_set(&periodic_timer, 2 * CLOCK_SECOND);
-  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
-
-  // send_request_to_root(67,78,NULL);
 
   PROCESS_END();
 }

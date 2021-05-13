@@ -13,29 +13,42 @@
 
 PROCESS(udp_root_process, "Root UDP server");
 AUTOSTART_PROCESSES(&udp_root_process);
-
-static void callback(unsigned index_node, packet p)
+      
+static void log_packet_from_node(packet p){
+  if(p.type == TEMPERATURE){
+      LOG_INFO("A barometer said that there is a temperature of %d °C\n",(int)p.value);
+  }else if(p.type == PRESSURE){
+      LOG_INFO("A barometer said that there is a pressure of %d hPa\n",(int)p.value);
+  }
+}
+ 
+static uint32_t callback(unsigned index_node, packet p)
 {
   node *nodes = get_nodes();
-  LOG_INFO("Nodes [");
-  for (int i = 0; i < MAX_CONNECTIONS; i++)
-  {
-    if (nodes[i].connected)
-    {
-      LOG_INFO_6ADDR(&nodes[i].connection.remote_addr);
-      LOG_INFO_(" : %u, ", (unsigned)nodes[i].type);
-    }
-  }
-  LOG_INFO_("]\n");
   if (p.type == NODE_TYPE)
   {
+    LOG_INFO("Nodes [");
+    for (int i = 0; i < MAX_CONNECTIONS; i++)
+    {
+      if (nodes[i].connected)
+      {
+        LOG_INFO_6ADDR(&nodes[i].connection.remote_addr);
+        LOG_INFO_(" : %u, ", (unsigned)nodes[i].type);
+      }
+    }
+    LOG_INFO_("]\n");
     // if (p.value == LAMP)
     // {
     //   LOG_INFO("Lighting lamp\n");
     //   send_request_to_node(index_node, LEDS_ON, GREEN, NULL);
     // }
+
+    if (p.value == BAROMETER)
+    {
+      send_request_to_node(index_node, TEMPERATURE, GET , log_packet_from_node);
+    }
   }
-  if (p.type == MOVEMENT_DETECTED)
+  else if (p.type == MOVEMENT_DETECTED)
   {
     LOG_INFO("Movement detected\n");
     for (int i = 0; i < MAX_CONNECTIONS; i++)
@@ -45,7 +58,10 @@ static void callback(unsigned index_node, packet p)
         send_request_to_node(i, LEDS_ON, GREEN, NULL);
       }
     }
+  }else{
+    log_packet_from_node(p);
   }
+  return 0;
 }
 
 PROCESS_THREAD(udp_root_process, ev, data)

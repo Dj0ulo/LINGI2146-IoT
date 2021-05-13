@@ -12,7 +12,7 @@
 
 static node nodes[MAX_CONNECTIONS];
 static node *root_node = NULL;
-static void (*action)(unsigned index_node, packet p);
+static uint32_t (*action)(unsigned index_node, packet p);
 
 void callback_timeout(void* current_node);
 
@@ -74,20 +74,20 @@ void callback_receive(conn *c,
                       uint16_t datalen)
 {
 
-  // if (random_rand() % 2 == 0)
-  // {
-  //   LOG_INFO("Simulate loss\n");
-  //   return;
-  // }
+  if (random_rand() % 2 == 0)
+  {
+    LOG_INFO("Simulate loss\n");
+    return;
+  }
 
   uint8_t cpy_data[datalen];
   memcpy(cpy_data, data, datalen);
 
-  // if (random_rand() % 3 == 0)
-  // {
-  //   LOG_INFO("Simulate corruption\n");
-  //   cpy_data[random_rand() % datalen] = (uint8_t)random_rand() % 0xFF;
-  // }
+  if (random_rand() % 3 == 0)
+  {
+    LOG_INFO("Simulate corruption\n");
+    cpy_data[random_rand() % datalen] = (uint8_t)random_rand() % 0xFF;
+  }
 
   packet recv_p = parse_packet(cpy_data, datalen);
 
@@ -122,7 +122,7 @@ void callback_receive(conn *c,
         send_req(current_node);
         return;
       }
-      LOG_INFO("Request answered.\n");
+      LOG_INFO("Request answered. %u\n",(unsigned)recv_p.type);
       req->running = 0;
       if (req->callback)
         req->callback(recv_p);
@@ -153,18 +153,24 @@ void callback_receive(conn *c,
 
     current_node->last_packet_recv = recv_p;
 
-    back_p.type = ACK;
-    set_packet(current_node->last_buffer_sent, back_p);
-    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, sender_addr);
-
     // If packet received is valid and has never been received before
-    if (first_time && !recv_p.is_response){
+    if (first_time){
       if(recv_p.type == NODE_TYPE){
         current_node->type = recv_p.value;  
       }
-      action(index_node, recv_p);
+      current_node->last_value = action(index_node, recv_p);
     }
-  }  
+    back_p.type = recv_p.type;
+
+    back_p.value = current_node->last_value;
+
+    set_packet(current_node->last_buffer_sent, back_p);
+    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, sender_addr);
+  } else{
+    // if it is a lost response
+    if (current_node->req.callback)
+        current_node->req.callback(recv_p);
+  }
 }
 
 void callback_timeout(void* current_node)
@@ -186,11 +192,13 @@ void callback_timeout(void* current_node)
   send_req(current_node);
 }
 
-void send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, void (*callback)(packet p))
+int send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, void (*callback)(packet p))
 {
   if(index_node >= MAX_CONNECTIONS)
-    return;
+    return 0;
   request *req = &nodes[index_node].req;
+  if(req->running)
+    return 0;
 
   packet p;
   p.is_response = 0;
@@ -206,12 +214,13 @@ void send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, voi
   req->running = TRUE;
 
   send_req(&nodes[index_node]);
+  return 1;
 }
 
 
-void send_request_to_root(uint8_t type, uint32_t value, void (*callback)(packet p))
+int send_request_to_root(uint8_t type, uint32_t value, void (*callback)(packet p))
 {
-  send_request_to_node(0, type, value, callback);
+  return send_request_to_node(0, type, value, callback);
 }
 
 //-------------------------------------------------------------------
@@ -222,7 +231,7 @@ node *get_nodes()
   return nodes;
 }
 
-void listen(void (*callback)(unsigned index_node, packet p))
+void listen(uint32_t (*callback)(unsigned index_node, packet p))
 {
   action = callback;
   for (int i = 0; i < MAX_CONNECTIONS; i++)
@@ -237,7 +246,7 @@ void listen(void (*callback)(unsigned index_node, packet p))
   }
 }
 
-void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, void (*callback)(unsigned index_node, packet p))
+void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, uint32_t (*callback)(unsigned index_node, packet p))
 {
   action = callback;
   root_node = &nodes[0];

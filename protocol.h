@@ -10,15 +10,18 @@
 #define UDP_SERVER_PORT	5678
 
 #define RESEND_TM CLOCK_SECOND
-#define TIMEOUT_COUNT 5
+#define TIMEOUT_COUNT 20
 
-enum PacketType{NODE_TYPE, ACK, NACK, LEDS_ON, LEDS_OFF, MOVEMENT_DETECTED};
 
 typedef struct simple_udp_connection conn;
 
 #define MAX_CONNECTIONS 10
 
-enum NodeType {NOT_SET, LAMP, MOVEMENT_DETECTOR};
+#define GET 0xFFFFFFFF
+
+enum NodeType {NOT_SET, LAMP, MOVEMENT_DETECTOR, BAROMETER, DOOR_LOCK};
+enum PacketType{NODE_TYPE, ACK, NACK, LEDS_ON, LEDS_OFF, MOVEMENT_DETECTED, TEMPERATURE, PRESSURE};
+
 enum Color{RED, GREEN, BLUE};
 
 typedef struct
@@ -39,18 +42,19 @@ typedef struct
   packet last_packet_recv;
   uint8_t last_buffer_sent[SIZE_PACKET];
   uip_ipaddr_t* ipaddr;
+  uint32_t last_value;
 
   request req;
 } node;
 
-void send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, void (*callback)(packet p));
+int send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, void (*callback)(packet p));
 
-void send_request_to_root(uint8_t type, uint32_t value, void (*callback)(packet p));
+int send_request_to_root(uint8_t type, uint32_t value, void (*callback)(packet p));
 
 
 node * get_nodes();
-void listen(void (*callback)(unsigned index_node, packet p));
-void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, void (*callback)(unsigned index_node, packet p));
+void listen(uint32_t (*callback)(unsigned index_node, packet p));
+void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, uint32_t (*callback)(unsigned index_node, packet p));
 int reach_root(uip_ipaddr_t * root_ipaddr);
 
 #endif
