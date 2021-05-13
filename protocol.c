@@ -16,6 +16,7 @@ typedef struct
   packet last_packet_recv;
   uint16_t last_id;
   uip_ipaddr_t dest_ipaddr;
+  void (*callback)(packet p);
 } sending_infos;
 
 static sending_infos si;
@@ -55,22 +56,22 @@ void log_bytes_packet(const uint8_t *buffer, size_t len)
 
 void log_packet(packet p)
 {
-  if (p.is_valid == ERR_LEN)
+  if (p.status == ERR_LEN)
   {
     LOG_INFO("Packet : [UNVALID SIZE]\n");
     return;
   }
-  if (p.is_valid == ERR_START)
+  if (p.status == ERR_START)
   {
     LOG_INFO("Packet : [UNVALID START]\n");
     return;
   }
-  if (p.is_valid == ERR_END)
+  if (p.status == ERR_END)
   {
     LOG_INFO("Packet : [UNVALID END]\n");
     return;
   }
-  if (p.is_valid == ERR_CRC)
+  if (p.status == ERR_CRC)
   {
     LOG_INFO("Packet : [UNVALID CHECKSUM]\n");
     return;
@@ -84,8 +85,8 @@ void set_packet(uint8_t *buffer_ptr, packet p)
   memset(buffer_ptr, START_PACKET, 1);
   off += 1;
 
-  p.is_valid = 1;
-  memcpy(buffer_ptr + off, &p.is_valid, 1);
+  p.status = OK;
+  memcpy(buffer_ptr + off, &p.status, 1);
   off += 1;
 
   if(!p.is_response)
@@ -116,24 +117,24 @@ packet parse_packet(const uint8_t *buffer, size_t len)
 
   if (len != SIZE_PACKET)
   {
-    params.is_valid = ERR_LEN;
+    params.status = ERR_LEN;
     return params;
   }
 
   if (buffer[0] != START_PACKET)
   {
-    params.is_valid = ERR_START;
+    params.status = ERR_START;
     return params;
   }
   if (buffer[SIZE_PACKET - 1] != END_PACKET)
   {
-    params.is_valid = ERR_END;
+    params.status = ERR_END;
     return params;
   }
 
   unsigned off = 1;
 
-  params.is_valid = buffer[off];
+  params.status = buffer[off];
   off += 1;
   memcpy(&params.random_id, buffer + off, 2);
   off += 2;
@@ -147,7 +148,7 @@ packet parse_packet(const uint8_t *buffer, size_t len)
   memcpy(&params.crc, buffer + off, 4);
 
   if (params.crc != crc32b(buffer + 1, off - 1))
-    params.is_valid = ERR_CRC;
+    params.status = ERR_CRC;
 
   return params;
 }
@@ -165,6 +166,10 @@ void callback_timeout()
   if (si.count_timeout >= TIMEOUT_COUNT)
   {
     LOG_INFO("REQUEST TIMEOUT\n");
+    packet p;
+    p.status = ERR_TIMEOUT;
+    if(si.callback)
+      si.callback(p);
     return;
   }
   si.count_timeout++;
@@ -191,9 +196,9 @@ void callback_receive(struct simple_udp_connection *c,
   packet p = parse_packet(data, datalen);
   log_packet(p);
 
-  if (p.is_valid != NO_ERR)
+  if (p.status != OK)
   {
-    LOG_INFO("There was an error %u, resending the same packet\n", (unsigned)p.is_valid);
+    LOG_INFO("There was an error %u, resending the same packet\n", (unsigned)p.status);
 
     send_last();
     return;
@@ -206,6 +211,8 @@ void callback_receive(struct simple_udp_connection *c,
     return;
   }
   LOG_INFO("Responded\n");
+  if(si.callback)
+    si.callback(p);
 
 }
 
@@ -215,7 +222,8 @@ void connect()
                       UDP_SERVER_PORT, callback_receive);
 }
 
-void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value)
+
+void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value, void (*callback)(packet p))
 {
   packet p;
   p.is_response = 0;
@@ -225,6 +233,7 @@ void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value)
   si.dest_ipaddr = *dest_ipaddr;
   si.count_timeout = 0;
   si.time_sent = clock_time();
+  si.callback = callback;
 
   set_packet(si.last_buffer_sent, p);
   send_last();
@@ -270,11 +279,11 @@ void callback_respond(struct simple_udp_connection *c,
   back_p.is_response = 1;
   back_p.random_id = recv_p.random_id;
 
-  if (recv_p.is_valid != NO_ERR )
+  if (recv_p.status != OK )
   {
-    LOG_INFO("Error %u, sending NACK.\n", (unsigned)recv_p.is_valid);
+    LOG_INFO("Error %u, sending NACK.\n", (unsigned)recv_p.status);
     back_p.type = NACK;
-    back_p.value = recv_p.is_valid;
+    back_p.value = recv_p.status;
   }
   else
   {
@@ -284,7 +293,7 @@ void callback_respond(struct simple_udp_connection *c,
 
     // If packet received is valid and has never been here do:
     if(first_time){
-      LOG_INFO("DO ACTION\n");
+      si.callback(recv_p);
     }
 
     back_p.type = ACK;
@@ -294,8 +303,9 @@ void callback_respond(struct simple_udp_connection *c,
   simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, sender_addr);
 }
 
-void listen()
+void listen(void (*callback)(packet p))
 {
+  si.callback = callback;
   simple_udp_register(&si.connection, UDP_SERVER_PORT, NULL,
                       UDP_CLIENT_PORT, callback_respond);
 }

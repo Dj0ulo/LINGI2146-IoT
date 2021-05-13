@@ -50,7 +50,11 @@ PROCESS_THREAD(udp_client_process, ev, data)
           /* Send to DAG root */
           LOG_INFO("Sending request...\n");
 
-          send_request(&dest_ipaddr, LEDS_ON, GREEN);
+          void callback(packet p){
+            LOG_INFO("cool\n");
+            log_packet(p);
+          }
+          send_request(&dest_ipaddr, LEDS_ON, GREEN, callback);
         }
       }
     }

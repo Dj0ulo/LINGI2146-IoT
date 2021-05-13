@@ -22,7 +22,14 @@ PROCESS_THREAD(udp_server_process, ev, data)
   /* Initialize DAG root */
   NETSTACK_ROUTING.root_start();
 
-  /* Initialize UDP connection */
-  listen();
+  /* Accept UDP connection */
+  void callback(packet p){
+    if(p.status == OK){
+      if(p.type == LEDS_ON){
+        LOG_INFO("Led on\n");
+      }
+    }
+  }
+  listen(callback);
   PROCESS_END();
 }
