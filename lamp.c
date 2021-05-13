@@ -7,6 +7,9 @@
 
 #include "protocol.h"
 
+#define LOG_MODULE "Lamp"
+#define LOG_LEVEL LOG_LEVEL_INFO
+
 #define SEND_INTERVAL (60 * CLOCK_SECOND)
 
 PROCESS(udp_lamp_process, "UDP client");

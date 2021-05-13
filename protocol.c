@@ -6,6 +6,9 @@
 #include "packet.h"
 #include "protocol.h"
 
+#define LOG_MODULE "Protocol"
+#define LOG_LEVEL LOG_LEVEL_INFO
+
 typedef struct
 {
   conn *connection;
@@ -29,7 +32,7 @@ void callback_timeout();
 
 void send_req()
 {
-  LOG_INFO("Packet (%u)\n", (unsigned)parse_packet(req.last_buffer_sent, SIZE_PACKET).random_id);
+  LOG_INFO("Sending packet (id: %u)\n", (unsigned)parse_packet(req.last_buffer_sent, SIZE_PACKET).random_id);
 
   simple_udp_sendto(req.connection, req.last_buffer_sent, SIZE_PACKET, &req.dest_ipaddr);
   ctimer_set(&req.timer, RESEND_TM, callback_timeout, NULL);
@@ -63,6 +66,7 @@ node *get_node_from_address(const uip_ipaddr_t *sender_addr)
         return NULL;
       }
       current_node = &nodes[index_first_empty];
+      current_node->connected = 1;
       memcpy(&current_node->connection.remote_addr, sender_addr, sizeof(uip_ipaddr_t));
     }
   }
@@ -99,7 +103,7 @@ void callback_receive(conn *c,
 
   packet recv_p = parse_packet(cpy_data, datalen);
 
-  LOG_INFO("Packet received from ");
+  LOG_INFO("Recieved from ");
   LOG_INFO_6ADDR(sender_addr);
   LOG_INFO_("\n");
   
@@ -125,7 +129,7 @@ void callback_receive(conn *c,
         send_req();
         return;
       }
-      LOG_INFO("Responded\n");
+      LOG_INFO("Request answered.\n");
       req.running = 0;
       if (req.callback)
         req.callback(recv_p);
@@ -153,8 +157,12 @@ void callback_receive(conn *c,
     current_node->last_packet_recv = recv_p;
 
     // If packet received is valid and has never been received before
-    if (first_time)
+    if (first_time && !recv_p.is_response){
+      if(recv_p.type == NODE_TYPE){
+        current_node->type = recv_p.value;  
+      }
       action(sender_addr, recv_p);
+    }
 
     back_p.type = ACK;
     back_p.value = 0;
@@ -231,5 +239,5 @@ void connect_root(uip_ipaddr_t *sender_addr, void (*callback)(const uip_ipaddr_t
                       UDP_SERVER_PORT, callback_receive);
 
   req.connection = &root_node->connection;
-  send_request(sender_addr, 42, 69, NULL);
+  send_request(sender_addr, NODE_TYPE, LAMP, NULL);
 }

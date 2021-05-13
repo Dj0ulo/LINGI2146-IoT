@@ -6,13 +6,7 @@
 #define UDP_CLIENT_PORT	8765
 #define UDP_SERVER_PORT	5678
 
-#define LOG_MODULE "App"
-#define LOG_LEVEL LOG_LEVEL_INFO
-
-#define ACK 0
-#define NACK 1
-#define LEDS_ON 2
-#define LEDS_OFF 2
+enum PacketType{NODE_TYPE, ACK, NACK, LEDS_ON, LEDS_OFF};
 
 typedef struct simple_udp_connection conn;
 

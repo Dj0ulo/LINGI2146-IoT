@@ -95,6 +95,24 @@
       </interface_config>
       <motetype_identifier>z12</motetype_identifier>
     </mote>
+    <mote>
+      <breakpoints />
+      <interface_config>
+        org.contikios.cooja.interfaces.Position
+        <x>87.28157580372026</x>
+        <y>71.18168955618728</y>
+        <z>0.0</z>
+      </interface_config>
+      <interface_config>
+        org.contikios.cooja.mspmote.interfaces.MspClock
+        <deviation>1.0</deviation>
+      </interface_config>
+      <interface_config>
+        org.contikios.cooja.mspmote.interfaces.MspMoteID
+        <id>4</id>
+      </interface_config>
+      <motetype_identifier>z11</motetype_identifier>
+    </mote>
   </simulation>
   <plugin>
     org.contikios.cooja.plugins.SimControl
@@ -112,7 +130,7 @@
       <skin>org.contikios.cooja.plugins.skins.GridVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.TrafficVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.UDGMVisualizerSkin</skin>
-      <viewport>4.763915436596484 0.0 0.0 4.763915436596484 -100.7478316826762 -114.12434661956824</viewport>
+      <viewport>6.901788605961188 0.0 0.0 6.901788605961188 -329.6127261083876 -313.55370120468723</viewport>
     </plugin_config>
     <width>400</width>
     <z>2</z>
@@ -123,7 +141,7 @@
   <plugin>
     org.contikios.cooja.plugins.LogListener
     <plugin_config>
-      <filter>App</filter>
+      <filter>App|Packet|Protocol|Root|Lamp</filter>
       <formatted_time />
       <coloring />
     </plugin_config>
@@ -138,6 +156,7 @@
     <plugin_config>
       <mote>0</mote>
       <mote>1</mote>
+      <mote>2</mote>
       <showRadioRXTX />
       <showRadioHW />
       <showLEDs />
