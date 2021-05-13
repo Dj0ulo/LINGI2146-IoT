@@ -1,59 +1,62 @@
 #include "contiki.h"
-#include "net/routing/routing.h"
-#include "random.h"
-#include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
 #include "sys/log.h"
+#include "dev/leds.h"
 
 #include "protocol.h"
 
 #define LOG_MODULE "Lamp"
 #define LOG_LEVEL LOG_LEVEL_INFO
 
-#define SEND_INTERVAL (60 * CLOCK_SECOND)
-
-PROCESS(udp_lamp_process, "UDP client");
+PROCESS(udp_lamp_process, "UDP Lamp");
 AUTOSTART_PROCESSES(&udp_lamp_process);
 
-static void callback(const uip_ipaddr_t *sender_addr, packet p){
+static void callback(unsigned index_node, packet p)
+{
   LOG_INFO("Action Callback of the lamp\n");
-  if(p.status == OK){
-    if(p.type == LEDS_ON){
+  if (p.status == OK)
+  {
+    leds_mask_t color = LEDS_COLOUR_NONE;
+    if(p.value == GREEN)
+      color = LEDS_GREEN;
+    else if(p.value == BLUE)
+      color = LEDS_BLUE;
+    else if(p.value == RED)
+      color = LEDS_RED;
+
+    if (p.type == LEDS_ON)
+    {
       LOG_INFO("Led on\n");
+      leds_on(color);
+    }
+    else if (p.type == LEDS_OFF)
+    {
+      LOG_INFO("Led off\n");
+      leds_off(color);
     }
   }
 }
 
 PROCESS_THREAD(udp_lamp_process, ev, data)
 {
-  static struct etimer periodic_timer;
-  uip_ipaddr_t root_ipaddr;
-
   PROCESS_BEGIN();
 
-  int time_request = CLOCK_SECOND * 2;
+  static uip_ipaddr_t root_ipaddr;
+  static struct etimer periodic_timer;
 
-  etimer_set(&periodic_timer, time_request);
-  int reachable = 0;
-  while (!reachable)
+  do
   {
+    etimer_set(&periodic_timer, 2 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
-
-    reachable = 1;
-    if(!NETSTACK_ROUTING.node_is_reachable()){
-      reachable = 0;
-      LOG_INFO("Not reachable yet\n");
-    }
-    else if(!NETSTACK_ROUTING.get_root_ipaddr(&root_ipaddr)){
-      reachable = 0;
-      LOG_INFO("Didn't see the root yet\n");
-    }
-
-    etimer_set(&periodic_timer, time_request);
-  }
+  } while (!reach_root(&root_ipaddr));
 
   /* Initialize UDP connection with root*/
-  connect_root(&root_ipaddr, callback);
+  connect_root(&root_ipaddr, LAMP, callback);
+
+  etimer_set(&periodic_timer, 2 * CLOCK_SECOND);
+  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
+
+  // send_request_to_root(67,78,NULL);
 
   PROCESS_END();
 }

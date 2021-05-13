@@ -12,15 +12,6 @@
 #define ERR_END 0xFF-4
 #define ERR_TIMEOUT 0xFF-5
 
-#define RESEND_TM CLOCK_SECOND/5
-#define TIMEOUT_COUNT 20
-
-
-
-enum{RED, GREEN, BLUE};
-
-#include "contiki.h"
-
 typedef struct 
 {
   uint8_t status;

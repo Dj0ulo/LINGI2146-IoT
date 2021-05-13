@@ -95,42 +95,42 @@ void set_packet(uint8_t *buffer_ptr, packet p)
 
 packet parse_packet(const uint8_t *buffer, unsigned len)
 {
-  packet params;
+  packet p;
 
   if (len != SIZE_PACKET)
   {
-    params.status = ERR_LEN;
-    return params;
+    p.status = ERR_LEN;
+    return p;
   }
 
   if (buffer[0] != START_PACKET)
   {
-    params.status = ERR_START;
-    return params;
+    p.status = ERR_START;
+    return p;
   }
   if (buffer[SIZE_PACKET - 1] != END_PACKET)
   {
-    params.status = ERR_END;
-    return params;
+    p.status = ERR_END;
+    return p;
   }
 
   unsigned off = 1;
 
-  params.status = buffer[off];
+  p.status = buffer[off];
   off += 1;
-  memcpy(&params.random_id, buffer + off, 2);
+  memcpy(&p.random_id, buffer + off, 2);
   off += 2;
-  params.is_response = buffer[off];
+  p.is_response = buffer[off];
   off += 1;
-  params.type = buffer[off];
+  p.type = buffer[off];
   off += 1;
-  memcpy(&params.value, buffer + off, 4);
+  memcpy(&p.value, buffer + off, 4);
   off += 4;
 
-  memcpy(&params.crc, buffer + off, 4);
+  memcpy(&p.crc, buffer + off, 4);
 
-  if (params.crc != crc32b(buffer + 1, off - 1))
-    params.status = ERR_CRC;
+  if (p.crc != crc32b(buffer + 1, off - 1))
+    p.status = ERR_CRC;
 
-  return params;
+  return p;
 }
