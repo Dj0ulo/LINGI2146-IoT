@@ -1,8 +1,10 @@
 # MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
-CONTIKI_PROJECT = udp-client udp-server
+CONTIKI_PROJECT = lamp root
 all: $(CONTIKI_PROJECT)
 
-PROJECT_SOURCEFILES += protocol.c
+PROJECT_SOURCEFILES += packet.c protocol.c
+
+CFLAGS += -std=gnu11
 
 CONTIKI=..
 include $(CONTIKI)/Makefile.include

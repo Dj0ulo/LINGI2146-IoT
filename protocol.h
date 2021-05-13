@@ -1,17 +1,37 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include "defines.h"
+#include "packet.h"
 
+#define UDP_CLIENT_PORT	8765
+#define UDP_SERVER_PORT	5678
 
-void init_conn(struct simple_udp_connection* c, simple_udp_callback callback);
+#define LOG_MODULE "App"
+#define LOG_LEVEL LOG_LEVEL_INFO
 
-void set_hello_sentence(char *str, unsigned len, unsigned count);
+#define ACK 0
+#define NACK 1
+#define LEDS_ON 2
+#define LEDS_OFF 2
 
-void log_bytes_packet(const uint8_t* buffer, size_t len);
-void log_packet(packet p);
-packet parse_packet(const uint8_t *buffer, size_t len);
+typedef struct simple_udp_connection conn;
+
+#define MAX_CONNECTIONS 10
+
+enum NodeType {NOT_SET, LAMP};
+typedef struct 
+{
+  uint8_t connected;
+  uint8_t type;
+  conn connection;
+  packet last_packet_recv;
+  uint8_t last_buffer_sent[SIZE_PACKET];
+} node;
+
 void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value, void (*callback)(packet p));
-void listen(void (*callback)(packet p));
-void connect();
+
+node * get_nodes();
+void listen(void (*callback)(const uip_ipaddr_t *sender_addr, packet p));
+void connect_root(uip_ipaddr_t *sender_addr, void (*callback)(const uip_ipaddr_t *sender_addr, packet p));
+
 #endif

@@ -1,13 +1,5 @@
-#ifndef DEFINES_H
-#define DEFINES_H
-
-#include "contiki.h"
-
-#define UDP_CLIENT_PORT	8765
-#define UDP_SERVER_PORT	5678
-
-#define LOG_MODULE "App"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#ifndef PACKET_H
+#define PACKET_H
 
 #define SIZE_PACKET 15
 #define START_PACKET 0xFF
@@ -23,13 +15,11 @@
 #define RESEND_TM CLOCK_SECOND/5
 #define TIMEOUT_COUNT 20
 
-#define ACK 0
-#define NACK 1
-#define LEDS_ON 2
-#define LEDS_OFF 2
+
 
 enum{RED, GREEN, BLUE};
 
+#include "contiki.h"
 
 typedef struct 
 {
@@ -40,5 +30,11 @@ typedef struct
   uint32_t value;
   uint32_t crc;
 } packet;
+
+
+void log_bytes_packet(const uint8_t* buffer, unsigned len);
+void log_packet(packet p);
+void set_packet(uint8_t *buffer_ptr, packet p);
+packet parse_packet(const uint8_t *buffer, unsigned len);
 
 #endif
