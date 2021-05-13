@@ -13,6 +13,7 @@
 #define START_PACKET 0xFF
 #define END_PACKET 0xFF
 
+#define NO_ERR 1
 #define ERR_LEN 0xFF-1
 #define ERR_CRC 0xFF-2
 #define ERR_START 0xFF-3
@@ -20,6 +21,9 @@
 
 #define RESEND_TM CLOCK_SECOND/5
 #define TIMEOUT_COUNT 20
+
+#define ACK 0
+#define NACK 1
 
 
 typedef struct 

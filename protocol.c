@@ -13,11 +13,12 @@ typedef struct
   struct ctimer timer;
   unsigned count_timeout;
   uint8_t last_buffer_sent[SIZE_PACKET];
+  packet last_packet_recv;
+  uint16_t last_id;
   uip_ipaddr_t dest_ipaddr;
 } sending_infos;
 
 static sending_infos si;
-struct simple_udp_connection server_connection;
 
 /**
  * From : https://stackoverflow.com/questions/21001659/crc32-algorithm-implementation-in-c-without-a-look-up-table-and-with-a-public-li#21001712
@@ -86,7 +87,11 @@ void set_packet(uint8_t *buffer_ptr, packet p)
   p.is_valid = 1;
   memcpy(buffer_ptr + off, &p.is_valid, 1);
   off += 1;
-  p.random_id = 0; //random_rand();
+
+  if(!p.is_response)
+    p.random_id = random_rand();
+
+  si.last_id = p.random_id;
 
   memcpy(buffer_ptr + off, &p.random_id, 2);
   off += 2;
@@ -147,18 +152,25 @@ packet parse_packet(const uint8_t *buffer, size_t len)
   return params;
 }
 
+void callback_timeout();
+void send_last(){
+  LOG_INFO("Packet (%u)\n", (unsigned)parse_packet(si.last_buffer_sent, SIZE_PACKET).random_id);
+
+  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, &si.dest_ipaddr);
+  ctimer_set(&si.timer, RESEND_TM, callback_timeout, NULL);
+}
+
 void callback_timeout()
 {
   if (si.count_timeout >= TIMEOUT_COUNT)
   {
     LOG_INFO("REQUEST TIMEOUT\n");
+    return;
   }
   si.count_timeout++;
   LOG_INFO("Time done %u, resending...\n", (unsigned)(1000 * (clock_time() - si.time_sent) / CLOCK_SECOND));
 
-  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, &si.dest_ipaddr);
-
-  ctimer_set(&si.timer, RESEND_TM, callback_timeout, NULL);
+  send_last();
 }
 
 void callback_receive(struct simple_udp_connection *c,
@@ -170,14 +182,27 @@ void callback_receive(struct simple_udp_connection *c,
                       uint16_t datalen)
 {
 
+  ctimer_stop(&si.timer);
+
   LOG_INFO("PROTOCOL packet received from ");
   LOG_INFO_6ADDR(sender_addr);
   LOG_INFO_("\n");
 
   packet p = parse_packet(data, datalen);
-  ctimer_stop(&si.timer);
-
   log_packet(p);
+
+  if (p.is_valid != NO_ERR)
+  {
+    LOG_INFO("There was an error %u, resending the same packet\n", (unsigned)p.is_valid);
+
+    send_last();
+  }
+  else if (p.type == NACK)
+  {
+    LOG_INFO("A NACK was sent back, resending the same packet\n");
+
+    send_last();
+  }
 }
 
 void connect()
@@ -186,7 +211,6 @@ void connect()
                       UDP_SERVER_PORT, callback_receive);
 }
 
-
 void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value)
 {
   packet p;
@@ -194,13 +218,12 @@ void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value)
   p.type = type;
   p.value = value;
 
-  set_packet(si.last_buffer_sent, p);
   si.dest_ipaddr = *dest_ipaddr;
-  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, &si.dest_ipaddr);
-
   si.count_timeout = 0;
   si.time_sent = clock_time();
-  ctimer_set(&si.timer, RESEND_TM, callback_timeout, NULL);
+
+  set_packet(si.last_buffer_sent, p);
+  send_last();
 }
 
 void callback_respond(struct simple_udp_connection *c,
@@ -231,29 +254,43 @@ void callback_respond(struct simple_udp_connection *c,
     cpy_data[random_rand() % datalen] = (uint8_t)random_rand() % 0xFF;
   }
 
-  packet p = parse_packet(cpy_data, datalen);
+  packet recv_p = parse_packet(cpy_data, datalen);
+  si.last_packet_recv = recv_p;
 
   log_bytes_packet(cpy_data, datalen);
-  log_packet(p);
+  log_packet(recv_p);
 
-  if (!p.is_valid)
-    LOG_INFO("Raw : \"%.*s\"\n", datalen, (char *)data);
-
-  /* send back the same string to the client as an echo reply */
-  LOG_INFO("Sending response.\n");
   packet back_p;
-  back_p.is_valid = 1;
   back_p.is_response = 1;
+  back_p.random_id = recv_p.random_id;
 
-  back_p.type = 0;
-  back_p.value = 0;
+  if (recv_p.is_valid != NO_ERR )
+  {
+    LOG_INFO("Error %u, sending NACK.\n", (unsigned)recv_p.is_valid);
+    back_p.type = NACK;
+    back_p.value = recv_p.is_valid;
+  }
+  else
+  {
+    LOG_INFO("Sending response.\n");
 
+    //here manage what to respond
+
+
+    // If packet received is valid and has never been here do:
+    if(si.last_packet_recv.crc != recv_p.crc){
+      LOG_INFO("DO ACTION\n");
+    }
+
+    back_p.type = ACK;
+    back_p.value = 0;
+  }
   set_packet(si.last_buffer_sent, back_p);
-  simple_udp_sendto(&server_connection, si.last_buffer_sent, SIZE_PACKET, sender_addr);
+  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, sender_addr);
 }
 
 void listen()
 {
-  simple_udp_register(&server_connection, UDP_SERVER_PORT, NULL,
+  simple_udp_register(&si.connection, UDP_SERVER_PORT, NULL,
                       UDP_CLIENT_PORT, callback_respond);
 }
