@@ -196,13 +196,17 @@ void callback_receive(struct simple_udp_connection *c,
     LOG_INFO("There was an error %u, resending the same packet\n", (unsigned)p.is_valid);
 
     send_last();
+    return;
   }
-  else if (p.type == NACK)
+  if (p.type == NACK)
   {
     LOG_INFO("A NACK was sent back, resending the same packet\n");
 
     send_last();
+    return;
   }
+  LOG_INFO("Responded\n");
+
 }
 
 void connect()
@@ -255,6 +259,8 @@ void callback_respond(struct simple_udp_connection *c,
   }
 
   packet recv_p = parse_packet(cpy_data, datalen);
+
+  int first_time = si.last_packet_recv.crc != recv_p.crc;
   si.last_packet_recv = recv_p;
 
   log_bytes_packet(cpy_data, datalen);
@@ -276,9 +282,8 @@ void callback_respond(struct simple_udp_connection *c,
 
     //here manage what to respond
 
-
     // If packet received is valid and has never been here do:
-    if(si.last_packet_recv.crc != recv_p.crc){
+    if(first_time){
       LOG_INFO("DO ACTION\n");
     }
 

@@ -24,6 +24,10 @@
 
 #define ACK 0
 #define NACK 1
+#define LEDS_ON 2
+#define LEDS_OFF 2
+
+enum{RED, GREEN, BLUE};
 
 
 typedef struct 
