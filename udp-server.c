@@ -25,7 +25,7 @@ PROCESS_THREAD(udp_server_process, ev, data)
   /* Accept UDP connection */
   void callback(packet p){
     if(p.status == OK){
-      if(p.type == LEDS_ON){
+      if(p.type == LAMP_ON){
         LOG_INFO("Led on\n");
       }
     }

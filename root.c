@@ -40,7 +40,7 @@ static void handle_packet(packet p)
     LOG_INFO("Movement detected\n");
     for (int i = 0; i < MAX_CONNECTIONS; i++)
       if (nodes[i].connected && nodes[i].type == LAMP)
-        send_request_to_node(i, LEDS_ON, GREEN, NULL);
+        send_request_to_node(i, LAMP_ON, GREEN, NULL);
   }
 }
 
@@ -59,11 +59,6 @@ static uint32_t callback(unsigned index_node, packet p)
       }
     }
     LOG_INFO_("]\n");
-    // if (p.value == LAMP)
-    // {
-    //   LOG_INFO("Lighting lamp\n");
-    //   send_request_to_node(index_node, LEDS_ON, GREEN, NULL);
-    // }
 
     if (p.value == BAROMETER)
     {

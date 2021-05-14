@@ -8,31 +8,59 @@
 #define LOG_MODULE "Lamp"
 #define LOG_LEVEL LOG_LEVEL_INFO
 
+#define TIME_ON 600 * CLOCK_SECOND
+
 PROCESS(udp_node_process, "UDP Lamp");
 AUTOSTART_PROCESSES(&udp_node_process);
+
+static struct ctimer timer;
+
+static void auto_shut();
+
+static void turn(int on, int color){
+  leds_mask_t led = LEDS_COLOUR_NONE;
+  switch (color)
+  {
+  case RED:
+    led = LEDS_RED;
+    break;
+  
+  case GREEN:
+    led = LEDS_GREEN;
+    break;
+  
+  case BLUE:
+    led = LEDS_YELLOW;
+    break;
+  
+  default:
+    return;
+  }
+  if(on){
+    LOG_INFO("Lamp on\n");
+    leds_on(led); 
+    ctimer_set(&timer, TIME_ON, auto_shut, NULL);  
+  }
+  else{
+    LOG_INFO("Lamp off\n");
+    leds_off(led);
+  }    
+}
+
+static void auto_shut(){
+  turn(FALSE, RED);
+  turn(FALSE, GREEN);
+  turn(FALSE, BLUE);
+}
 
 static uint32_t callback(unsigned index_node, packet p)
 {
   if (p.status == OK)
   {
-    leds_mask_t color = LEDS_COLOUR_NONE;
-    if(p.value == GREEN)
-      color = LEDS_GREEN;
-    else if(p.value == BLUE)
-      color = LEDS_BLUE;
-    else if(p.value == RED)
-      color = LEDS_RED;
-
-    if (p.type == LEDS_ON)
-    {
-      LOG_INFO("Led on\n");
-      leds_on(color);
-    }
-    else if (p.type == LEDS_OFF)
-    {
-      LOG_INFO("Led off\n");
-      leds_off(color);
-    }
+    if(p.type == LAMP_ON)
+      turn(TRUE, p.value);
+    else if(p.type == LAMP_OFF)
+      turn(FALSE, p.value);
   }
   return 0;
 

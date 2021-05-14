@@ -93,7 +93,6 @@ void callback_receive(conn *connection,
   current_node->connected = 1;
   current_node->connection = *connection;
   current_node->connection.remote_addr = *sender_addr;
-  // memcpy(&current_node->connection.remote_addr, sender_addr, sizeof(uip_ipaddr_t));
 
   LOG_INFO("Node %d of type %u\n",index_node,(unsigned)current_node->type);
   log_packet(recv_p);

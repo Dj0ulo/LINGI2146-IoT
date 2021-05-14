@@ -1,7 +1,6 @@
 #include "contiki.h"
 #include "net/ipv6/simple-udp.h"
 #include "sys/log.h"
-// #include "dev/button-sensor.h"
 #include "dev/leds.h"
 #include "random.h"
 
@@ -20,10 +19,10 @@ static uint32_t is_lock = UNLOCK;
 static struct ctimer timer;
 
 static void send_state(){
-  if(is_lock)
-    leds_on(LEDS_GREEN);
+  if(is_lock == UNLOCK)
+    leds_off(LEDS_RED);
   else
-    leds_off(LEDS_GREEN);
+    leds_on(LEDS_RED);
   send_request_to_root(LOCK_, is_lock,NULL);
 }
 
