@@ -55,8 +55,6 @@ PROCESS_THREAD(udp_node_process, ev, data)
 {
   PROCESS_BEGIN();
 
-  // SENSORS_ACTIVATE(button_sensor);
-
   static uip_ipaddr_t root_ipaddr;
   static struct etimer periodic_timer;
 

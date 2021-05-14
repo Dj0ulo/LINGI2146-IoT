@@ -5,3 +5,4 @@
 cooja/build/*
 build/*
 .vscode/*
+border/build/*

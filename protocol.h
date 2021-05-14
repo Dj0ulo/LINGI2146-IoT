@@ -1,6 +1,7 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+#include "net/ipv6/simple-udp.h"
 #include "packet.h"
 
 #define TRUE	1
