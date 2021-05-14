@@ -42,7 +42,7 @@ PROCESS_THREAD(udp_node_process, ev, data)
 
   do
   {
-    etimer_set(&periodic_timer, 2 * CLOCK_SECOND);
+    etimer_set(&periodic_timer, WAITING_REACHABLE);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
   } while (!reach_root(&root_ipaddr));
 

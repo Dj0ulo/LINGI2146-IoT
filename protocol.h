@@ -6,11 +6,15 @@
 #define TRUE	1
 #define FALSE	0
 
+#define PERFECT_NETWORK TRUE
+
 #define UDP_CLIENT_PORT	8765
 #define UDP_SERVER_PORT	5678
 
 #define RESEND_TM CLOCK_SECOND
-#define TIMEOUT_COUNT 20
+#define TIMEOUT_COUNT 2
+
+#define WAITING_REACHABLE 60*CLOCK_SECOND
 
 
 typedef struct simple_udp_connection conn;
@@ -20,7 +24,7 @@ typedef struct simple_udp_connection conn;
 #define GET 0xFFFFFFFF
 #define SET 0xFFFFFFFE
 
-enum NodeType {NOT_SET, LAMP, MOVEMENT_DETECTOR, BAROMETER, DOOR_LOCK};
+enum NodeType {NOT_SET, LAMP=100, MOVEMENT_DETECTOR, BAROMETER, DOOR_LOCK};
 enum PacketType{NODE_TYPE, ACK, NACK, LEDS_ON, LEDS_OFF, MOVEMENT_DETECTED, TEMPERATURE, PRESSURE, LOCK_, UNLOCK};
 
 enum Color{RED, GREEN, BLUE};

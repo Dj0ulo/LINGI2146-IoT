@@ -21,6 +21,7 @@ void send_req(node *current_node)
   LOG_INFO("Snd ");
   LOG_INFO_6ADDR(current_node->ipaddr);
   LOG_INFO_("\n");
+  log_packet(parse_packet(current_node->req.data,SIZE_PACKET));
 
   simple_udp_sendto(&current_node->connection, current_node->req.data, SIZE_PACKET, current_node->ipaddr);
   ctimer_set(&current_node->req.timer, RESEND_TM, callback_timeout, (void*)current_node);
@@ -31,8 +32,6 @@ int get_index_node_from_address(const uip_ipaddr_t *sender_addr)
   if (root_node)
     return 0;
 
-  node *current_node = NULL;
-
   // if we are the server, we didn't set the pointer root_node
   int index_first_empty = -1;
   for (int i = 0; i < MAX_CONNECTIONS; i++)
@@ -41,30 +40,19 @@ int get_index_node_from_address(const uip_ipaddr_t *sender_addr)
     {
       index_first_empty = i;
     }
-    if (memcmp(sender_addr, &nodes[i].connection.remote_addr, sizeof(uip_ipaddr_t)) == 0)
+    if (memcmp(sender_addr, nodes[i].ipaddr, sizeof(uip_ipaddr_t)) == 0)
     {
-      current_node = &nodes[i];
       return i;
     }
   }
   
-  //if not set
-  if (index_first_empty == -1)
-  {
-    LOG_INFO("Cannot accept more connections");
-    return -1;
-  }
   LOG_INFO("New node !\n");
-  current_node = &nodes[index_first_empty];
-  current_node->connected = 1;
-  memcpy(&current_node->connection.remote_addr, sender_addr, sizeof(uip_ipaddr_t));
-
   return index_first_empty;
 }
   
 
 
-void callback_receive(conn *c,
+void callback_receive(conn *connection,
                       const uip_ipaddr_t *sender_addr,
                       uint16_t sender_port,
                       const uip_ipaddr_t *receiver_addr,
@@ -73,7 +61,7 @@ void callback_receive(conn *c,
                       uint16_t datalen)
 {
 
-  if (random_rand() % 2 == 0)
+  if (!PERFECT_NETWORK && random_rand() % 2 == 0)
   {
     LOG_INFO("Simulate loss\n");
     return;
@@ -82,7 +70,7 @@ void callback_receive(conn *c,
   uint8_t cpy_data[datalen];
   memcpy(cpy_data, data, datalen);
 
-  if (random_rand() % 3 == 0)
+  if (!PERFECT_NETWORK && random_rand() % 3 == 0)
   {
     LOG_INFO("Simulate corruption\n");
     cpy_data[random_rand() % datalen] = (uint8_t)random_rand() % 0xFF;
@@ -93,16 +81,23 @@ void callback_receive(conn *c,
   LOG_INFO("From ");
   LOG_INFO_6ADDR(sender_addr);
   LOG_INFO_("\n");
-  
-  log_packet(recv_p);
-
 
   int index_node = get_index_node_from_address(sender_addr);
-  if(index_node == -1)
+  if(index_node == -1){
+    LOG_INFO("Cannot accept more connections\n");
     return;
+  }
+
 
   node *current_node = &nodes[index_node];
+  current_node->connected = 1;
+  current_node->connection = *connection;
+  current_node->connection.remote_addr = *sender_addr;
+  // memcpy(&current_node->connection.remote_addr, sender_addr, sizeof(uip_ipaddr_t));
 
+  LOG_INFO("Node %d of type %u\n",index_node,(unsigned)current_node->type);
+  log_packet(recv_p);
+  
   if (current_node->req.running)
   {
     request *req = &current_node->req;
@@ -148,7 +143,6 @@ void callback_receive(conn *c,
   }
 
   if(!recv_p.is_response){
-    LOG_INFO("Acknowledge...\n");
 
     current_node->last_packet_recv = recv_p;
 
@@ -158,13 +152,20 @@ void callback_receive(conn *c,
         current_node->type = recv_p.value;  
       }
       current_node->last_value = action(index_node, recv_p);
+      LOG_INFO("Send rep...\n");
+    }else{
+      LOG_INFO("Packet previously received, re-rep...\n");
     }
     back_p.type = recv_p.type;
 
     back_p.value = current_node->last_value;
 
     set_packet(current_node->last_buffer_sent, back_p);
-    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, sender_addr);
+    LOG_INFO("To ");
+    LOG_INFO_6ADDR(current_node->ipaddr);
+    LOG_INFO_("\n");
+    // log_packet(parse_packet(current_node->last_buffer_sent, SIZE_PACKET));
+    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, current_node->ipaddr);
   } else{
     // if it is a lost response
     if (current_node->req.callback)
@@ -251,7 +252,8 @@ void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, uint32_t (*call
   root_node = &nodes[0];
   root_node->req.running = FALSE;
   root_node->ipaddr = &root_node->connection.remote_addr;
-  simple_udp_register(&root_node->connection, UDP_CLIENT_PORT, sender_addr,
+  memcpy(root_node->ipaddr, sender_addr, sizeof(uip_ipaddr_t));
+  simple_udp_register(&root_node->connection, UDP_CLIENT_PORT, NULL,
                       UDP_SERVER_PORT, callback_receive);
 
   send_request_to_root(NODE_TYPE, node_type, NULL);
