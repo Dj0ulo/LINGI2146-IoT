@@ -18,7 +18,6 @@ void callback_timeout(void* current_node);
 
 void send_req(node *current_node)
 {
-  // LOG_INFO("Cusdfasdfl\n");
   LOG_INFO("Snd ");
   LOG_INFO_6ADDR(current_node->ipaddr);
   LOG_INFO_("\n");

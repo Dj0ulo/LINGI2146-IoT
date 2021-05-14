@@ -13,15 +13,37 @@
 
 PROCESS(udp_root_process, "Root UDP server");
 AUTOSTART_PROCESSES(&udp_root_process);
-      
-static void log_packet_from_node(packet p){
-  if(p.type == TEMPERATURE){
-      LOG_INFO("A barometer said that there is a temperature of %d °C\n",(int)p.value);
-  }else if(p.type == PRESSURE){
-      LOG_INFO("A barometer said that there is a pressure of %d hPa\n",(int)p.value);
+
+static void handle_packet(packet p)
+{
+  node *nodes = get_nodes();
+  if (p.type == TEMPERATURE)
+  {
+    LOG_INFO("The barometer said that there is a temperature of %d °C\n", (int)p.value);
+      for (int i = 0; i < MAX_CONNECTIONS; i++)
+        if (nodes[i].connected && nodes[i].type == DOOR_LOCK)
+          send_request_to_node(i, (int)p.value < 0 ? LOCK_ : UNLOCK, SET, NULL);
+  }
+  else if (p.type == PRESSURE)
+  {
+    LOG_INFO("The barometer said that there is a pressure of %d hPa\n", (int)p.value);
+      for (int i = 0; i < MAX_CONNECTIONS; i++)
+        if (nodes[i].connected && nodes[i].type == DOOR_LOCK)
+          send_request_to_node(i, (int)p.value < 1013 ? LOCK_ : UNLOCK, SET, NULL);
+  }
+  else if (p.type == LOCK_)
+  {
+    LOG_INFO("The lock is %s\n", p.value == LOCK_ ? "locked" : "unlocked");
+  }
+  else if (p.type == MOVEMENT_DETECTED)
+  {
+    LOG_INFO("Movement detected\n");
+    for (int i = 0; i < MAX_CONNECTIONS; i++)
+      if (nodes[i].connected && nodes[i].type == LAMP)
+        send_request_to_node(i, LEDS_ON, GREEN, NULL);
   }
 }
- 
+
 static uint32_t callback(unsigned index_node, packet p)
 {
   node *nodes = get_nodes();
@@ -45,21 +67,16 @@ static uint32_t callback(unsigned index_node, packet p)
 
     if (p.value == BAROMETER)
     {
-      send_request_to_node(index_node, TEMPERATURE, GET , log_packet_from_node);
+      send_request_to_node(index_node, TEMPERATURE, GET, handle_packet);
+    }
+    else if (p.value == DOOR_LOCK)
+    {
+      send_request_to_node(index_node, LOCK_, GET, handle_packet);
     }
   }
-  else if (p.type == MOVEMENT_DETECTED)
+  else
   {
-    LOG_INFO("Movement detected\n");
-    for (int i = 0; i < MAX_CONNECTIONS; i++)
-    {
-      if (nodes[i].connected && nodes[i].type == LAMP)
-      {
-        send_request_to_node(i, LEDS_ON, GREEN, NULL);
-      }
-    }
-  }else{
-    log_packet_from_node(p);
+    handle_packet(p);
   }
   return 0;
 }

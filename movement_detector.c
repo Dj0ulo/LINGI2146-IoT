@@ -30,13 +30,9 @@ PROCESS_THREAD(udp_node_process, ev, data)
   /* Initialize UDP connection with root*/
   connect_root(&root_ipaddr, MOVEMENT_DETECTOR, NULL);
 
-  etimer_set(&periodic_timer, 10 * CLOCK_SECOND);
-  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
-
   while (1)
   {
     PROCESS_WAIT_EVENT(); // Waiting for a event, don't care which
-
     if (ev == sensors_event)
     { // If the event it's provoked by the user button, then...
       if (data == &button_sensor)

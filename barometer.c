@@ -1,7 +1,6 @@
 #include "contiki.h"
 #include "net/ipv6/simple-udp.h"
 #include "sys/log.h"
-#include "dev/button-sensor.h"
 #include "random.h"
 
 #include "protocol.h"
@@ -38,8 +37,6 @@ PROCESS_THREAD(udp_node_process, ev, data)
 {
   PROCESS_BEGIN();
 
-  SENSORS_ACTIVATE(button_sensor);
-
   static uip_ipaddr_t root_ipaddr;
   static struct etimer periodic_timer;
 
@@ -55,7 +52,7 @@ PROCESS_THREAD(udp_node_process, ev, data)
   static int temp = 0;
   while (TRUE)
   {
-    etimer_set(&periodic_timer, 60 * CLOCK_SECOND);
+    etimer_set(&periodic_timer, 10 * 60 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
     if(temp%2)
       send_request_to_root(TEMPERATURE, get(TEMPERATURE), NULL);

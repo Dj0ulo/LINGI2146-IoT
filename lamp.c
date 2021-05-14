@@ -8,8 +8,8 @@
 #define LOG_MODULE "Lamp"
 #define LOG_LEVEL LOG_LEVEL_INFO
 
-PROCESS(udp_lamp_process, "UDP Lamp");
-AUTOSTART_PROCESSES(&udp_lamp_process);
+PROCESS(udp_node_process, "UDP Lamp");
+AUTOSTART_PROCESSES(&udp_node_process);
 
 static uint32_t callback(unsigned index_node, packet p)
 {
@@ -38,7 +38,7 @@ static uint32_t callback(unsigned index_node, packet p)
 
 }
 
-PROCESS_THREAD(udp_lamp_process, ev, data)
+PROCESS_THREAD(udp_node_process, ev, data)
 {
   PROCESS_BEGIN();
 
