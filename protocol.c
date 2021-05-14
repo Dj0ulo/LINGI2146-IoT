@@ -1,179 +1,58 @@
+#include "contiki.h"
 #include "net/routing/routing.h"
-#include "random.h"
-#include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
 
+#include "random.h"
 #include "sys/log.h"
-#include "defines.h"
+#include "packet.h"
+#include "protocol.h"
 
-typedef struct
+#define LOG_MODULE "Protocol"
+#define LOG_LEVEL LOG_LEVEL_INFO
+
+static node nodes[MAX_CONNECTIONS];
+static node *root_node = NULL;
+static uint32_t (*action)(unsigned index_node, packet p);
+
+void callback_timeout(void* current_node);
+
+void send_req(node *current_node)
 {
-  struct simple_udp_connection connection;
-  clock_time_t time_sent;
-  struct ctimer timer;
-  unsigned count_timeout;
-  uint8_t last_buffer_sent[SIZE_PACKET];
-  packet last_packet_recv;
-  uint16_t last_id;
-  uip_ipaddr_t dest_ipaddr;
-} sending_infos;
+  LOG_INFO("Snd ");
+  LOG_INFO_6ADDR(current_node->ipaddr);
+  LOG_INFO_("\n");
+  log_packet(parse_packet(current_node->req.data,SIZE_PACKET));
 
-static sending_infos si;
+  simple_udp_sendto(&current_node->connection, current_node->req.data, SIZE_PACKET, current_node->ipaddr);
+  ctimer_set(&current_node->req.timer, RESEND_TM, callback_timeout, (void*)current_node);
+}
 
-/**
- * From : https://stackoverflow.com/questions/21001659/crc32-algorithm-implementation-in-c-without-a-look-up-table-and-with-a-public-li#21001712
- * @param buffer: The buffer to check
- * @return the value of the checksum
- */
-uint32_t crc32b(const uint8_t *buffer, size_t len)
+int get_index_node_from_address(const uip_ipaddr_t *sender_addr)
 {
-  uint32_t byte, crc = 0xFFFFFFFF, mask;
+  if (root_node)
+    return 0;
 
-  int i;
-  for (i = 0; i < len; i++)
+  // if we are the server, we didn't set the pointer root_node
+  int index_first_empty = -1;
+  for (int i = 0; i < MAX_CONNECTIONS; i++)
   {
-    byte = buffer[i]; // Get next byte.
-    crc = crc ^ byte;
-    int j;
-    for (j = 7; j >= 0; j--)
-    { // Do eight times.
-      mask = -(crc & 1);
-      crc = (crc >> 1) ^ (0xEDB88320 & mask);
+    if (index_first_empty == -1 && !nodes[i].connected)
+    {
+      index_first_empty = i;
+    }
+    if (memcmp(sender_addr, nodes[i].ipaddr, sizeof(uip_ipaddr_t)) == 0)
+    {
+      return i;
     }
   }
-  return ~crc;
+  
+  LOG_INFO("New node !\n");
+  return index_first_empty;
 }
+  
 
-void log_bytes_packet(const uint8_t *buffer, size_t len)
-{
-  int i = 0;
-  LOG_INFO("Bytes (%u) : ", (unsigned)len);
-  for (i = 0; i < len; i++)
-    LOG_INFO_("%02x ", (unsigned)buffer[i]);
-  LOG_INFO_("\n");
-}
 
-void log_packet(packet p)
-{
-  if (p.is_valid == ERR_LEN)
-  {
-    LOG_INFO("Packet : [UNVALID SIZE]\n");
-    return;
-  }
-  if (p.is_valid == ERR_START)
-  {
-    LOG_INFO("Packet : [UNVALID START]\n");
-    return;
-  }
-  if (p.is_valid == ERR_END)
-  {
-    LOG_INFO("Packet : [UNVALID END]\n");
-    return;
-  }
-  if (p.is_valid == ERR_CRC)
-  {
-    LOG_INFO("Packet : [UNVALID CHECKSUM]\n");
-    return;
-  }
-  LOG_INFO("Packet (id: %u) : %s %u : %u\n", (unsigned)p.random_id, p.is_response ? "response " : "request ", (unsigned)p.type, (unsigned)p.value);
-}
-
-void set_packet(uint8_t *buffer_ptr, packet p)
-{
-  unsigned off = 0;
-  memset(buffer_ptr, START_PACKET, 1);
-  off += 1;
-
-  p.is_valid = 1;
-  memcpy(buffer_ptr + off, &p.is_valid, 1);
-  off += 1;
-
-  if(!p.is_response)
-    p.random_id = random_rand();
-
-  si.last_id = p.random_id;
-
-  memcpy(buffer_ptr + off, &p.random_id, 2);
-  off += 2;
-  memcpy(buffer_ptr + off, &p.is_response, 1);
-  off += 1;
-  memcpy(buffer_ptr + off, &p.type, 1);
-  off += 1;
-  memcpy(buffer_ptr + off, &p.value, 4);
-  off += 4;
-
-  p.crc = crc32b(buffer_ptr + 1, off - 1);
-  memcpy(buffer_ptr + off, &p.crc, 4);
-  off += 4;
-
-  memset(buffer_ptr + off, END_PACKET, 1);
-}
-
-packet parse_packet(const uint8_t *buffer, size_t len)
-{
-  // uint8_t buffer[SIZE_PACKET] = buffer_ptr;
-  packet params;
-
-  if (len != SIZE_PACKET)
-  {
-    params.is_valid = ERR_LEN;
-    return params;
-  }
-
-  if (buffer[0] != START_PACKET)
-  {
-    params.is_valid = ERR_START;
-    return params;
-  }
-  if (buffer[SIZE_PACKET - 1] != END_PACKET)
-  {
-    params.is_valid = ERR_END;
-    return params;
-  }
-
-  unsigned off = 1;
-
-  params.is_valid = buffer[off];
-  off += 1;
-  memcpy(&params.random_id, buffer + off, 2);
-  off += 2;
-  params.is_response = buffer[off];
-  off += 1;
-  params.type = buffer[off];
-  off += 1;
-  memcpy(&params.value, buffer + off, 4);
-  off += 4;
-
-  memcpy(&params.crc, buffer + off, 4);
-
-  if (params.crc != crc32b(buffer + 1, off - 1))
-    params.is_valid = ERR_CRC;
-
-  return params;
-}
-
-void callback_timeout();
-void send_last(){
-  LOG_INFO("Packet (%u)\n", (unsigned)parse_packet(si.last_buffer_sent, SIZE_PACKET).random_id);
-
-  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, &si.dest_ipaddr);
-  ctimer_set(&si.timer, RESEND_TM, callback_timeout, NULL);
-}
-
-void callback_timeout()
-{
-  if (si.count_timeout >= TIMEOUT_COUNT)
-  {
-    LOG_INFO("REQUEST TIMEOUT\n");
-    return;
-  }
-  si.count_timeout++;
-  LOG_INFO("Time done %u, resending...\n", (unsigned)(1000 * (clock_time() - si.time_sent) / CLOCK_SECOND));
-
-  send_last();
-}
-
-void callback_receive(struct simple_udp_connection *c,
+void callback_receive(conn *connection,
                       const uip_ipaddr_t *sender_addr,
                       uint16_t sender_port,
                       const uip_ipaddr_t *receiver_addr,
@@ -182,68 +61,7 @@ void callback_receive(struct simple_udp_connection *c,
                       uint16_t datalen)
 {
 
-  ctimer_stop(&si.timer);
-
-  LOG_INFO("PROTOCOL packet received from ");
-  LOG_INFO_6ADDR(sender_addr);
-  LOG_INFO_("\n");
-
-  packet p = parse_packet(data, datalen);
-  log_packet(p);
-
-  if (p.is_valid != NO_ERR)
-  {
-    LOG_INFO("There was an error %u, resending the same packet\n", (unsigned)p.is_valid);
-
-    send_last();
-    return;
-  }
-  if (p.type == NACK)
-  {
-    LOG_INFO("A NACK was sent back, resending the same packet\n");
-
-    send_last();
-    return;
-  }
-  LOG_INFO("Responded\n");
-
-}
-
-void connect()
-{
-  simple_udp_register(&si.connection, UDP_CLIENT_PORT, NULL,
-                      UDP_SERVER_PORT, callback_receive);
-}
-
-void send_request(const uip_ipaddr_t *dest_ipaddr, uint8_t type, uint32_t value)
-{
-  packet p;
-  p.is_response = 0;
-  p.type = type;
-  p.value = value;
-
-  si.dest_ipaddr = *dest_ipaddr;
-  si.count_timeout = 0;
-  si.time_sent = clock_time();
-
-  set_packet(si.last_buffer_sent, p);
-  send_last();
-}
-
-void callback_respond(struct simple_udp_connection *c,
-                      const uip_ipaddr_t *sender_addr,
-                      uint16_t sender_port,
-                      const uip_ipaddr_t *receiver_addr,
-                      uint16_t receiver_port,
-                      const uint8_t *data,
-                      uint16_t datalen)
-{
-
-  LOG_INFO("Packet received from ");
-  LOG_INFO_6ADDR(sender_addr);
-  LOG_INFO_("\n");
-
-  if (random_rand() % 2 == 0)
+  if (!PERFECT_NETWORK && random_rand() % 2 == 0)
   {
     LOG_INFO("Simulate loss\n");
     return;
@@ -252,7 +70,7 @@ void callback_respond(struct simple_udp_connection *c,
   uint8_t cpy_data[datalen];
   memcpy(cpy_data, data, datalen);
 
-  if (random_rand() % 3 == 0)
+  if (!PERFECT_NETWORK && random_rand() % 3 == 0)
   {
     LOG_INFO("Simulate corruption\n");
     cpy_data[random_rand() % datalen] = (uint8_t)random_rand() % 0xFF;
@@ -260,42 +78,194 @@ void callback_respond(struct simple_udp_connection *c,
 
   packet recv_p = parse_packet(cpy_data, datalen);
 
-  int first_time = si.last_packet_recv.crc != recv_p.crc;
-  si.last_packet_recv = recv_p;
+  LOG_INFO("From ");
+  LOG_INFO_6ADDR(sender_addr);
+  LOG_INFO_("\n");
 
-  log_bytes_packet(cpy_data, datalen);
+  int index_node = get_index_node_from_address(sender_addr);
+  if(index_node == -1){
+    LOG_INFO("Cannot accept more connections\n");
+    return;
+  }
+
+
+  node *current_node = &nodes[index_node];
+  current_node->connected = 1;
+  current_node->connection = *connection;
+  current_node->connection.remote_addr = *sender_addr;
+
+  LOG_INFO("Node %d of type %u\n",index_node,(unsigned)current_node->type);
   log_packet(recv_p);
+  
+  if (current_node->req.running)
+  {
+    request *req = &current_node->req;
+    if (recv_p.status != OK)
+    {
+      LOG_INFO("Response error %u, resending the packet\n", (unsigned)recv_p.status);
+      send_req(current_node);
+      return;
+    }
+
+    if(recv_p.is_response){
+      ctimer_stop(&req->timer);
+      if (recv_p.type == NACK)
+      {
+        LOG_INFO("A NACK was sent back, resending the same packet\n");
+        send_req(current_node);
+        return;
+      }
+      LOG_INFO("Request answered. %u\n",(unsigned)recv_p.type);
+      req->running = 0;
+      if (req->callback)
+        req->callback(recv_p);
+      return;
+    }
+
+  }
+
+  // is probably a request
+  int first_time = current_node->last_packet_recv.crc != recv_p.crc;
 
   packet back_p;
   back_p.is_response = 1;
   back_p.random_id = recv_p.random_id;
 
-  if (recv_p.is_valid != NO_ERR )
+  if (recv_p.status != OK)
   {
-    LOG_INFO("Error %u, sending NACK.\n", (unsigned)recv_p.is_valid);
+    LOG_INFO("Error %u, sending NACK.\n", (unsigned)recv_p.status);
     back_p.type = NACK;
-    back_p.value = recv_p.is_valid;
+    back_p.value = recv_p.status;
+    set_packet(current_node->last_buffer_sent, back_p);
+    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, sender_addr);
+    return;
   }
-  else
-  {
-    LOG_INFO("Sending response.\n");
 
-    //here manage what to respond
+  if(!recv_p.is_response){
 
-    // If packet received is valid and has never been here do:
-    if(first_time){
-      LOG_INFO("DO ACTION\n");
+    current_node->last_packet_recv = recv_p;
+
+    // If packet received is valid and has never been received before
+    if (first_time){
+      if(recv_p.type == NODE_TYPE){
+        current_node->type = recv_p.value;  
+      }
+      current_node->last_value = action(index_node, recv_p);
+      LOG_INFO("Send rep...\n");
+    }else{
+      LOG_INFO("Packet previously received, re-rep...\n");
     }
+    back_p.type = recv_p.type;
 
-    back_p.type = ACK;
-    back_p.value = 0;
+    back_p.value = current_node->last_value;
+
+    set_packet(current_node->last_buffer_sent, back_p);
+    LOG_INFO("To ");
+    LOG_INFO_6ADDR(current_node->ipaddr);
+    LOG_INFO_("\n");
+    // log_packet(parse_packet(current_node->last_buffer_sent, SIZE_PACKET));
+    simple_udp_sendto(&current_node->connection, current_node->last_buffer_sent, SIZE_PACKET, current_node->ipaddr);
+  } else{
+    // if it is a lost response
+    if (current_node->req.callback)
+        current_node->req.callback(recv_p);
   }
-  set_packet(si.last_buffer_sent, back_p);
-  simple_udp_sendto(&si.connection, si.last_buffer_sent, SIZE_PACKET, sender_addr);
 }
 
-void listen()
+void callback_timeout(void* current_node)
 {
-  simple_udp_register(&si.connection, UDP_SERVER_PORT, NULL,
-                      UDP_CLIENT_PORT, callback_respond);
+  request * req = &((node*)current_node)->req;
+  if (req->count_timeout >= TIMEOUT_COUNT)
+  {
+    LOG_INFO("REQUEST TIMEOUT\n");
+    packet p;
+    p.status = ERR_TIMEOUT;
+    req->running = 0;
+    if (req->callback)
+      req->callback(p);
+    return;
+  }
+  req->count_timeout++;
+  LOG_INFO("Time done %u, resending...\n", (unsigned)(1000 * (clock_time() - req->time_sent) / CLOCK_SECOND));
+
+  send_req(current_node);
+}
+
+int send_request_to_node(unsigned index_node, uint8_t type, uint32_t value, void (*callback)(packet p))
+{
+  if(index_node >= MAX_CONNECTIONS)
+    return 0;
+  request *req = &nodes[index_node].req;
+  if(req->running)
+    return 0;
+
+  packet p;
+  p.is_response = 0;
+  p.type = type;
+  p.value = value;
+  p.random_id = 0;
+
+  req->count_timeout = 0;
+  req->time_sent = clock_time();
+  req->callback = callback;
+
+  set_packet(req->data, p);
+  req->running = TRUE;
+
+  send_req(&nodes[index_node]);
+  return 1;
+}
+
+
+int send_request_to_root(uint8_t type, uint32_t value, void (*callback)(packet p))
+{
+  return send_request_to_node(0, type, value, callback);
+}
+
+//-------------------------------------------------------------------
+
+
+node *get_nodes()
+{
+  return nodes;
+}
+
+void listen(uint32_t (*callback)(unsigned index_node, packet p))
+{
+  action = callback;
+  for (int i = 0; i < MAX_CONNECTIONS; i++)
+  {
+    nodes[i].type = NOT_SET;
+    nodes[i].connected = FALSE;
+    nodes[i].req.running = FALSE;
+    nodes[i].ipaddr = &nodes[i].connection.remote_addr;
+
+    simple_udp_register(&nodes[i].connection, UDP_SERVER_PORT, NULL,
+                        UDP_CLIENT_PORT, callback_receive);
+  }
+}
+
+void connect_root(uip_ipaddr_t *sender_addr, uint32_t node_type, uint32_t (*callback)(unsigned index_node, packet p))
+{
+  action = callback;
+  root_node = &nodes[0];
+  root_node->req.running = FALSE;
+  root_node->ipaddr = &root_node->connection.remote_addr;
+  memcpy(root_node->ipaddr, sender_addr, sizeof(uip_ipaddr_t));
+  simple_udp_register(&root_node->connection, UDP_CLIENT_PORT, NULL,
+                      UDP_SERVER_PORT, callback_receive);
+
+  send_request_to_root(NODE_TYPE, node_type, NULL);
+}
+
+int reach_root(uip_ipaddr_t * root_ipaddr){
+    if(!NETSTACK_ROUTING.node_is_reachable()){
+      LOG_INFO("Network not reachable yet\n");
+      return 0;
+    }
+    else if(!NETSTACK_ROUTING.get_root_ipaddr(root_ipaddr)){
+      LOG_INFO("Root not reachable yet\n");
+      return 0;
+    }
+    return 1;
 }
